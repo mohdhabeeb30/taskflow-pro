@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.*
+!.env.example
+dist/
+build/
+.next/
+coverage/
+*.log
+*.sqlite
+*.db
+.venv/
+__pycache__/
+.DS_Store
