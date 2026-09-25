@@ -19,6 +19,6 @@ export function validateDependency(
   if (dependencies.some((dependency) => dependency.taskId === taskId && dependency.dependsOnId === dependsOnId)) {
     throw new DependencyError('This dependency already exists');
   }
-  const cyclePath = findCyclePath(taskId, dependsOnId, dependencies);
+  const cyclePath = findCyclePath(dependencies, taskId, dependsOnId);
   if (cyclePath !== null) throw new DependencyError(`Dependency would create a cycle: ${cyclePath.join(' -> ')}`, cyclePath);
 }

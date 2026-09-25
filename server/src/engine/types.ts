@@ -19,3 +19,12 @@ export interface DateChange {
   startDate: string;
   endDate: string;
 }
+
+export interface StatusInfo {
+  blocked: boolean;
+  blockers: string[];
+}
+
+export interface VisitCounter {
+  count: number;
+}

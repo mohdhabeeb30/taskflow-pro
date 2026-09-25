@@ -1,4 +1,4 @@
-import { prerequisitesOf, downstreamOf, topologicalOrder } from './graph.js';
+import { getDownstream, prerequisitesOf, topoOrder } from './graph.js';
 import type { DateChange, Dependency, Task } from './types.js';
 
 function dateValue(date: string): number {
@@ -16,13 +16,14 @@ function duration(task: Task): number {
 }
 
 export function propagateSchedule(
-  changedTaskId: string,
   tasks: ReadonlyMap<string, Task>,
   dependencies: readonly Dependency[],
+  changedTaskId: string,
+  visitedNodes?: { count: number },
 ): DateChange[] {
-  const affected = downstreamOf(changedTaskId, dependencies);
+  const affected = getDownstream(dependencies, changedTaskId, visitedNodes);
   const changes: DateChange[] = [];
-  for (const taskId of topologicalOrder(affected, dependencies)) {
+  for (const taskId of topoOrder(affected, dependencies)) {
     const task = tasks.get(taskId);
     if (task === undefined) continue;
     const latestPrerequisiteEnd = Math.max(
