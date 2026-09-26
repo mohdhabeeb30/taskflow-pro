@@ -20,9 +20,15 @@ export type Board = { tasks: Task[]; dependencies: Dependency[] };
 export type User = { id: string; email: string };
 export type TaskInput = Pick<Task, 'title' | 'description' | 'status' | 'start_date' | 'end_date'>;
 export type TaskPatch = Partial<TaskInput>;
+export type DateChange = { taskId: string; startDate: string; endDate: string };
+export type DependencyResponse = { dependency: Dependency; moved: DateChange[] };
+export type TaskMutationResponse = { task: Task; moved?: DateChange[] };
+export type SuggestedDependency = Dependency;
+export type RejectedSuggestion = { suggestion: unknown; reason: string };
+export type SuggestionResult = { accepted: SuggestedDependency[]; rejected: RejectedSuggestion[]; provider: 'gemini' | 'mock'; cached: boolean };
 
 export class ApiError extends Error {
-  constructor(readonly status: number, message: string, readonly code?: string) {
+  constructor(readonly status: number, message: string, readonly code?: string, readonly details?: Record<string, unknown>) {
     super(message);
   }
 }
@@ -34,8 +40,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const text = await response.text();
   const payload: unknown = text ? JSON.parse(text) : undefined;
   if (!response.ok) {
-    const error = payload as { error?: { message?: string; code?: string } } | undefined;
-    throw new ApiError(response.status, error?.error?.message ?? 'Something went wrong', error?.error?.code);
+    const error = payload as { error?: { message?: string; code?: string; details?: Record<string, unknown> } } | undefined;
+    throw new ApiError(response.status, error?.error?.message ?? 'Something went wrong', error?.error?.code, error?.error?.details);
   }
   return payload as T;
 }
@@ -48,17 +54,27 @@ export const api = {
   }),
   logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
   board: () => request<Board>('/api/board'),
-  createTask: (input: TaskInput) => request<{ task: Task }>('/api/tasks', {
+  createTask: (input: TaskInput) => request<TaskMutationResponse>('/api/tasks', {
     method: 'POST',
     body: JSON.stringify(input),
   }),
-  updateTask: (id: string, input: TaskPatch) => request<{ task: Task }>(`/api/tasks/${id}`, {
+  updateTask: (id: string, input: TaskPatch) => request<TaskMutationResponse>(`/api/tasks/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(input),
   }),
   deleteTask: (id: string) => request<void>(`/api/tasks/${id}`, { method: 'DELETE' }),
-  moveTask: (id: string, status: Status, position: number) => request<{ task: Task }>(`/api/tasks/${id}/move`, {
+  moveTask: (id: string, status: Status, position: number) => request<TaskMutationResponse>(`/api/tasks/${id}/move`, {
     method: 'POST',
     body: JSON.stringify({ status, position }),
   }),
+  addDependency: (taskId: string, dependsOnId: string) => request<DependencyResponse>('/api/dependencies', {
+    method: 'POST',
+    body: JSON.stringify({ taskId, dependsOnId }),
+  }),
+  removeDependency: (taskId: string, dependsOnId: string) => request<void>('/api/dependencies', {
+    method: 'DELETE',
+    body: JSON.stringify({ taskId, dependsOnId }),
+  }),
+  suggestDependencies: () => request<SuggestionResult>('/api/ai/suggest-dependencies', { method: 'POST' }),
+  aiStatus: () => request<{ provider: 'gemini' | 'mock' }>('/api/ai/status'),
 };
