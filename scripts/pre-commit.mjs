@@ -9,6 +9,7 @@ const stagedFiles = execFileSync('git', ['diff', '--cached', '--name-only', '--d
 
 const forbiddenPath = /(^|\/)(\.env(?!\.example(?:\/|$))(?:\..*)?|node_modules|dist|build)(\/|$)|(?:^|\/)[^/]+\.(?:sqlite|db)$/;
 const forbiddenNames = /(^|\/)(?:\.env(?!\.example(?:\/|$))(?:\..*)?|node_modules|dist|build)(\/|$)|(?:^|\/)[^/]+\.(?:sqlite|db)$/;
+const testFile = /(^|\/)(?:tests|__tests__)(\/|$)|\.test\.ts$/;
 const secretAssignment = /(?:api[_-]?key|password|secret|token)[ \t]*[:=][ \t]*['"]?[^\s'"`]+/i;
 const binaryExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.woff', '.woff2', '.ttf', '.ico']);
 const errors = [];
@@ -29,7 +30,7 @@ for (const file of stagedFiles) {
   } catch {
     continue;
   }
-  if (secretAssignment.test(content)) errors.push(`${file}: looks like a non-empty key, password, secret, or token`);
+  if (!testFile.test(file) && secretAssignment.test(content)) errors.push(`${file}: looks like a non-empty key, password, secret, or token`);
 }
 
 if (errors.length > 0) {

@@ -10,7 +10,7 @@ Node 20 is required. Copy `.env.example` to `.env`, set `SEED_USER_EMAIL` and `S
 
 ## Architecture
 
-The server owns SQLite persistence, cookie-backed authentication, the dependency engine, and the LLM provider boundary. `POST /api/auth/login` verifies the seeded user's bcrypt password and stores only a SHA-256 session-token hash in SQLite; the raw opaque token is returned only as an `httpOnly`, `SameSite=Lax` cookie. `GET /api/auth/me` reports the authenticated user and `POST /api/auth/logout` invalidates the current session. `GET /api/board` is public; task and dependency writes require a valid session. The React client checks `/api/auth/me` before rendering, loads the board on mount, and uses `@dnd-kit` for optimistic movement between and within columns. CRUD is handled in a modal; failed moves restore the prior card position and display a toast.
+The server owns SQLite persistence, cookie-backed authentication, the dependency engine, and the LLM provider boundary. `POST /api/auth/login` verifies the seeded user's bcrypt password and stores only a SHA-256 session-token hash in SQLite; the raw opaque token is returned only as an `httpOnly`, `SameSite=Lax` cookie. `GET /api/auth/me` reports the authenticated user and `POST /api/auth/logout` invalidates the current session. `GET /api/board` is public; task and dependency writes require a valid session. The React client checks `/api/auth/me` before rendering, loads the board on mount, and uses `@dnd-kit` for optimistic movement between and within columns. CRUD and prerequisite selection are handled in a modal; dependency cycles keep the form open and show the named cycle path. Date propagation highlights every moved card with old-to-new dates, and card hover traces upstream and downstream graph relationships. Failed moves restore the prior card position and display a toast.
 
 ## Key Assumptions and Limitations
 
@@ -18,7 +18,7 @@ Dates use ISO calendar dates (`YYYY-MM-DD`). The dependency engine is pure and i
 
 ## AI Usage
 
-The server may use Gemini for prerequisite suggestions. API keys remain in environment variables and are never sent to the client.
+The server uses `GeminiProvider` with `LLM_MODEL` (default `gemini-3.5-flash-lite`) for prerequisite suggestions. Set `LLM_PROVIDER=mock` only for local UI work; responses are labeled `Mock data`, and the demo configuration remains on Gemini. The prompt is documented in [docs/ai-prompt.md](docs/ai-prompt.md). API keys remain in environment variables and are never sent to the client. Suggestions are validated against the current task graph before the client can accept them.
 
 ## Testing
 

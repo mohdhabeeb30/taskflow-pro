@@ -6,18 +6,20 @@ import { rmSync } from 'node:fs';
 import { openDatabase } from '../src/db/database.js';
 import { runMigrations } from '../src/db/migrations.js';
 import { createApp } from '../src/api/app.js';
+import { MockProvider } from '../src/ai/provider.js';
+import { AiService } from '../src/ai/service.js';
 
 const databases: Database.Database[] = [];
 const paths: string[] = [];
 
-function makeMemoryApp() {
+function makeMemoryApp(aiService?: AiService) {
   const db = new Database(':memory:');
   db.pragma('foreign_keys = ON');
   runMigrations(db);
   databases.push(db);
   db.prepare('INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)')
     .run('test-user', 'test@example.com', bcrypt.hashSync('correct-password', 4), new Date().toISOString());
-  const app = createApp(db);
+  const app = aiService ? createApp(db, { aiService }) : createApp(db);
   return { db, app, agent: request.agent(app) };
 }
 
@@ -44,6 +46,17 @@ describe('TaskFlow API', () => {
   it('serves the board without login', async () => {
     const { app } = makeMemoryApp();
     expect((await request(app).get('/api/board')).status).toBe(200);
+  });
+
+  it('requires login for AI suggestions and caches mock results', async () => {
+    const { app, agent } = makeMemoryApp(new AiService(new MockProvider('[]')));
+    expect((await request(app).post('/api/ai/suggest-dependencies')).status).toBe(401);
+    await login(agent);
+    expect((await agent.get('/api/ai/status')).body).toEqual({ provider: 'mock' });
+    const first = await agent.post('/api/ai/suggest-dependencies');
+    const second = await agent.post('/api/ai/suggest-dependencies');
+    expect(first.body).toMatchObject({ accepted: [], rejected: [], provider: 'mock', cached: false });
+    expect(second.body).toMatchObject({ provider: 'mock', cached: true });
   });
 
   it('logs in with an httpOnly cookie and returns no secret fields', async () => {

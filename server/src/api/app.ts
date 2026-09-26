@@ -12,6 +12,7 @@ import {
   type Task as EngineTask,
 } from '../engine/index.js';
 import { databaseToEngineStatus, type DatabaseStatus } from './status-mapping.js';
+import { aiProviderStatusError, AiService, type AiService as AiServiceType } from '../ai/index.js';
 
 const databaseStatuses = ['backlog', 'in_progress', 'review', 'done'] as const;
 const statusRank: Record<DatabaseStatus, number> = { backlog: 0, in_progress: 1, review: 2, done: 3 };
@@ -144,8 +145,9 @@ function withTransaction<T>(db: Database.Database, callback: () => T): T {
   return db.transaction(callback)();
 }
 
-export function createApp(db: Database.Database): express.Express {
+export function createApp(db: Database.Database, options: { aiService?: AiServiceType } = {}): express.Express {
   const app = express();
+  const aiService = options.aiService ?? new AiService();
   app.use(express.json());
 
   app.post('/api/auth/login', (request, response, next) => {
@@ -190,6 +192,23 @@ export function createApp(db: Database.Database): express.Express {
         const userId = requireAuth(db, request);
       const user = db.prepare('SELECT id, email FROM users WHERE id = ?').get(userId) as { id: string; email: string };
       response.json({ user });
+    } catch (error) { next(error); }
+  });
+
+  app.post('/api/ai/suggest-dependencies', (request, response, next) => {
+    try {
+      requireAuth(db, request);
+      const state = loadEngineState(db);
+      aiService.suggest([...state.tasks.values()], state.dependencies)
+        .then((result) => response.json(result))
+        .catch(next);
+    } catch (error) { next(error); }
+  });
+
+  app.get('/api/ai/status', (request, response, next) => {
+    try {
+      requireAuth(db, request);
+      response.json({ provider: aiService.providerName });
     } catch (error) { next(error); }
   });
 
@@ -310,6 +329,8 @@ export function createApp(db: Database.Database): express.Express {
   app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
     if (error instanceof z.ZodError) return response.status(400).json({ error: { code: 'VALIDATION', message: 'Invalid input', details: error.flatten() } });
     if (error instanceof ApiError) return response.status(error.status).json({ error: { code: error.code, message: error.message, ...(error.details === undefined ? {} : { details: error.details }) } });
+    const providerError = aiProviderStatusError(error);
+    if (providerError) return response.status(providerError.status).json({ error: { code: 'AI_PROVIDER_ERROR', message: providerError.message, details: {} } });
     if (error instanceof DependencyError) return response.status(409).json({ error: { code: 'CYCLE_DETECTED', message: error.message, details: { path: error.cyclePath ?? [] } } });
     if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) return response.status(400).json({ error: { code: 'VALIDATION', message: 'Duplicate dependency', details: {} } });
     console.error(error);
