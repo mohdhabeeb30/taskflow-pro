@@ -44,7 +44,7 @@ describe('status and movement', () => {
   it('rolls regression through three levels and unblocks after Done', () => {
     const tasks = mapOf(task('A', 'In Progress'), task('B', 'Done'), task('C', 'Done'), task('D', 'Done'));
     const dependencies = [edge('B', 'A'), edge('C', 'B'), edge('D', 'C')];
-    expect([...computeStatus(tasks, dependencies).entries()].filter(([, status]) => status.blocked).map(([id]) => id)).toEqual(['B']);
+    expect([...computeStatus(tasks, dependencies).entries()].filter(([, status]) => status.blocked).map(([id]) => id)).toEqual(['B', 'C', 'D']);
     tasks.set('A', task('A', 'Done'));
     expect([...computeStatus(tasks, dependencies).values()].every((status) => !status.blocked)).toBe(true);
   });

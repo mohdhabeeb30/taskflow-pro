@@ -8,6 +8,8 @@ build/
 coverage/
 *.log
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal
 *.db
 .venv/
 __pycache__/
