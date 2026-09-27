@@ -30,6 +30,7 @@ const taskInput = taskFields.superRefine((value, context) => {
 const taskPatch = taskFields.partial().refine((value) => Object.keys(value).length > 0, 'At least one field is required');
 const moveInput = z.object({ status: z.enum(databaseStatuses), position: z.number().int().nonnegative() });
 const dependencyInput = z.object({ taskId: z.string().min(1), dependsOnId: z.string().min(1) });
+const aiSuggestionInput = z.object({ taskId: z.string().min(1) });
 const loginInput = z.object({ email: z.string().trim().email(), password: z.string().min(1) });
 const sessionCookie = 'taskflow_session';
 const sessionDurationMs = 8 * 60 * 60 * 1000;
@@ -198,8 +199,12 @@ export function createApp(db: Database.Database, options: { aiService?: AiServic
   app.post('/api/ai/suggest-dependencies', (request, response, next) => {
     try {
       requireAuth(db, request);
+      const { taskId } = aiSuggestionInput.parse(request.body);
       const state = loadEngineState(db);
-      aiService.suggest([...state.tasks.values()], state.dependencies)
+      const targetTask = state.tasks.get(taskId);
+      if (!targetTask) throw new ApiError('NOT_FOUND', 'Task not found', { id: taskId }, 404);
+      const otherTasks = [...state.tasks.values()].filter((task) => task.id !== taskId);
+      aiService.suggest(targetTask, otherTasks, state.dependencies)
         .then((result) => response.json(result))
         .catch(next);
     } catch (error) { next(error); }

@@ -23,13 +23,14 @@ export class AiService {
     return this.provider.name;
   }
 
-  async suggest(tasks: readonly Task[], dependencies: readonly Dependency[]): Promise<SuggestionResult> {
-    const input = JSON.stringify({ tasks, dependencies });
+  async suggest(targetTask: Task, otherTasks: readonly Task[], dependencies: readonly Dependency[]): Promise<SuggestionResult> {
+    const input = JSON.stringify({ targetTask, otherTasks, dependencies });
     const hash = createHash('sha256').update(input).digest('hex');
     if (this.lastResult?.hash === hash) return { ...this.lastResult.result, cached: true };
 
-    const raw = await this.provider.generate(buildDependencyPrompt(tasks, dependencies));
-    const validated = validateSuggestions(raw, tasks, dependencies);
+    const prompt = buildDependencyPrompt(targetTask, otherTasks, dependencies);
+    const raw = await this.provider.generate(prompt);
+    const validated = validateSuggestions(raw, targetTask.id, [targetTask, ...otherTasks], dependencies);
     const result: SuggestionResult = { ...validated, provider: this.provider.name, cached: false };
     this.lastResult = { hash, result };
     return result;

@@ -23,7 +23,7 @@ export type TaskPatch = Partial<TaskInput>;
 export type DateChange = { taskId: string; startDate: string; endDate: string };
 export type DependencyResponse = { dependency: Dependency; moved: DateChange[] };
 export type TaskMutationResponse = { task: Task; moved?: DateChange[] };
-export type SuggestedDependency = Dependency;
+export type SuggestedDependency = Dependency & { reason: string };
 export type RejectedSuggestion = { suggestion: unknown; reason: string };
 export type SuggestionResult = { accepted: SuggestedDependency[]; rejected: RejectedSuggestion[]; provider: 'gemini' | 'mock'; cached: boolean };
 
@@ -75,6 +75,6 @@ export const api = {
     method: 'DELETE',
     body: JSON.stringify({ taskId, dependsOnId }),
   }),
-  suggestDependencies: () => request<SuggestionResult>('/api/ai/suggest-dependencies', { method: 'POST' }),
+  suggestDependencies: (taskId: string) => request<SuggestionResult>('/api/ai/suggest-dependencies', { method: 'POST', body: JSON.stringify({ taskId }) }),
   aiStatus: () => request<{ provider: 'gemini' | 'mock' }>('/api/ai/status'),
 };

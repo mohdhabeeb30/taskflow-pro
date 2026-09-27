@@ -1,9 +1,9 @@
 import { validateDependency, type Dependency, type Task } from '../engine/index.js';
 
-export type SuggestedDependency = { taskId: string; dependsOnId: string };
+export type SuggestedDependency = { taskId: string; dependsOnId: string; reason: string };
 export type RejectedSuggestion = { suggestion: unknown; reason: string };
 
-export function validateSuggestions(raw: string, tasks: readonly Task[], existingDependencies: readonly Dependency[]): { accepted: SuggestedDependency[]; rejected: RejectedSuggestion[] } {
+export function validateSuggestions(raw: string, targetTaskId: string, tasks: readonly Task[], existingDependencies: readonly Dependency[]): { accepted: SuggestedDependency[]; rejected: RejectedSuggestion[] } {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -18,7 +18,11 @@ export function validateSuggestions(raw: string, tasks: readonly Task[], existin
   const dependencies = [...existingDependencies];
   for (const suggestion of parsed) {
     if (!isSuggestion(suggestion)) {
-      rejected.push({ suggestion, reason: 'Suggestion must contain string taskId and dependsOnId fields' });
+      rejected.push({ suggestion, reason: 'Suggestion must contain string taskId, dependsOnId, and reason fields' });
+      continue;
+    }
+    if (suggestion.taskId !== targetTaskId) {
+      rejected.push({ suggestion, reason: 'Suggestion taskId must match the target task' });
       continue;
     }
     try {
@@ -35,5 +39,5 @@ export function validateSuggestions(raw: string, tasks: readonly Task[], existin
 function isSuggestion(value: unknown): value is SuggestedDependency {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Record<string, unknown>;
-  return typeof candidate.taskId === 'string' && typeof candidate.dependsOnId === 'string';
+  return typeof candidate.taskId === 'string' && typeof candidate.dependsOnId === 'string' && typeof candidate.reason === 'string' && candidate.reason.trim().length > 0;
 }

@@ -282,7 +282,6 @@ function BoardApp({ board, user, toast, pageError, setBoard, onLogout, onUnautho
     const destination = board.tasks.filter((task) => task.status === nextStatus);
     setBoard(derivedBoard(rebalance(board, String(active.id), nextStatus, destination.length)));
   };
-
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     setActiveTask(undefined);
     if (!over || !dragSnapshot.current) return;
@@ -353,8 +352,8 @@ function BoardApp({ board, user, toast, pageError, setBoard, onLogout, onUnautho
     });
   };
 
-  const suggestDependencies = async () => {
-    const result = await api.suggestDependencies();
+  const suggestDependencies = async (taskId: string) => {
+    const result = await api.suggestDependencies(taskId);
     setAiProvider(result.provider);
     return result;
   };
@@ -432,7 +431,7 @@ function TaskCard({ task, needs = task.blockers.length, dateChange, onHover, onE
   </article>;
 }
 
-function TaskModal({ task, board, onClose, onSave, onSuggest, onAcceptSuggestion, onDelete }: { task: Task | undefined; board: Board; onClose: () => void; onSave: (input: TaskInput, task: Task | undefined, prerequisiteId: string | undefined, previousPrerequisiteId: string | undefined) => Promise<void>; onSuggest: () => Promise<SuggestionResult>; onAcceptSuggestion: (suggestion: SuggestedDependency) => Promise<void>; onDelete: ((task: Task) => Promise<void>) | undefined }) {
+function TaskModal({ task, board, onClose, onSave, onSuggest, onAcceptSuggestion, onDelete }: { task: Task | undefined; board: Board; onClose: () => void; onSave: (input: TaskInput, task: Task | undefined, prerequisiteId: string | undefined, previousPrerequisiteId: string | undefined) => Promise<void>; onSuggest: (taskId: string) => Promise<SuggestionResult>; onAcceptSuggestion: (suggestion: SuggestedDependency) => Promise<void>; onDelete: ((task: Task) => Promise<void>) | undefined }) {
   const [input, setInput] = useState<TaskInput>(task ? taskInput(task) : blankTask);
   const previousPrerequisiteId = task ? board.dependencies.find((dependency) => dependency.taskId === task.id)?.dependsOnId : undefined;
   const [prerequisiteId, setPrerequisiteId] = useState(previousPrerequisiteId ?? '');
@@ -448,7 +447,7 @@ function TaskModal({ task, board, onClose, onSave, onSuggest, onAcceptSuggestion
     setSuggesting(true);
     setSuggestionError('');
     try {
-      const result = await onSuggest();
+      const result = await onSuggest(task.id);
       setSuggestions(result.accepted.filter((suggestion) => suggestion.taskId === task.id));
       setRejectedSuggestions(result.rejected.filter((item) => typeof item.suggestion === 'object' && item.suggestion !== null && (item.suggestion as Record<string, unknown>).taskId === task.id));
     } catch (error) {
@@ -474,7 +473,7 @@ function TaskModal({ task, board, onClose, onSave, onSuggest, onAcceptSuggestion
         <label>Description<textarea value={input.description} onChange={(event) => set('description', event.target.value)} rows={3} /></label>
         <div className="form-grid"><label>Status<select value={input.status} onChange={(event) => set('status', event.target.value)}>{columns.map((column) => <option key={column.status} value={column.status}>{column.label}</option>)}</select></label><label>Start date<input type="date" value={input.start_date} onChange={(event) => set('start_date', event.target.value)} required /></label><label>End date<input type="date" value={input.end_date} onChange={(event) => set('end_date', event.target.value)} required /></label></div>
         <label>Prerequisite<select value={prerequisiteId} onChange={(event) => setPrerequisiteId(event.target.value)}><option value="">No prerequisite</option>{board.tasks.filter((candidate) => candidate.id !== task?.id).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.title}</option>)}</select></label>
-        <div className="suggestion-panel"><div className="suggestion-heading"><div><strong>AI dependency suggestions</strong><small>Grounded in this board's current tasks and links.</small></div><button type="button" className="ghost-button" onClick={() => void requestSuggestions()} disabled={!task || suggesting}>{suggesting ? 'Thinking...' : 'Suggest dependencies'}</button></div>{suggestionError && <p className="form-error">{suggestionError}</p>}{suggestions.map((suggestion) => <div className="suggestion-row" key={`${suggestion.taskId}-${suggestion.dependsOnId}`}><span>Needs <b>{board.tasks.find((candidate) => candidate.id === suggestion.dependsOnId)?.title ?? suggestion.dependsOnId}</b></span><span><button type="button" className="accept-button" onClick={() => void accept(suggestion)}>Accept</button><button type="button" className="reject-button" onClick={() => setSuggestions((current) => current.filter((item) => item !== suggestion))}>Reject</button></span></div>)}{rejectedSuggestions.map((item, index) => <div className="suggestion-rejected" key={`${item.reason}-${index}`}>Rejected: {item.reason}</div>)}</div>
+        <div className="suggestion-panel"><div className="suggestion-heading"><div><strong>AI dependency suggestions</strong><small>Grounded in this task's title, description, and current links.</small></div><button type="button" className="ghost-button" onClick={() => void requestSuggestions()} disabled={!task || suggesting}>{suggesting ? 'Thinking...' : 'Suggest dependencies'}</button></div>{suggestionError && <p className="form-error">{suggestionError}</p>}{suggestions.map((suggestion) => <div className="suggestion-row" key={`${suggestion.taskId}-${suggestion.dependsOnId}`}><div><span>Needs <b>{board.tasks.find((candidate) => candidate.id === suggestion.dependsOnId)?.title ?? suggestion.dependsOnId}</b></span><small className="suggestion-reason">{suggestion.reason}</small></div><span><button type="button" className="accept-button" onClick={() => void accept(suggestion)}>Accept</button><button type="button" className="reject-button" onClick={() => setSuggestions((current) => current.filter((item) => item !== suggestion))}>Reject</button></span></div>)}{rejectedSuggestions.map((item, index) => <div className="suggestion-rejected" key={`${item.reason}-${index}`}>Rejected: {item.reason}</div>)}</div>
         <div className="modal-actions">{task && onDelete && <button type="button" className="danger-button" onClick={() => { if (window.confirm('Delete this task?')) void onDelete(task); }}>Delete</button>}<span /><button type="button" className="ghost-button" onClick={onClose}>Cancel</button><button className="primary-button" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save task'}</button></div>
       </form>
     </section>

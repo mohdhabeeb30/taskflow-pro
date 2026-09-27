@@ -50,11 +50,12 @@ describe('TaskFlow API', () => {
 
   it('requires login for AI suggestions and caches mock results', async () => {
     const { app, agent } = makeMemoryApp(new AiService(new MockProvider('[]')));
-    expect((await request(app).post('/api/ai/suggest-dependencies')).status).toBe(401);
+    expect((await request(app).post('/api/ai/suggest-dependencies').send({ taskId: 'test-user' })).status).toBe(401);
     await login(agent);
     expect((await agent.get('/api/ai/status')).body).toEqual({ provider: 'mock' });
-    const first = await agent.post('/api/ai/suggest-dependencies');
-    const second = await agent.post('/api/ai/suggest-dependencies');
+    const created = await agent.post('/api/tasks').send(task('AI target'));
+    const first = await agent.post('/api/ai/suggest-dependencies').send({ taskId: created.body.task.id });
+    const second = await agent.post('/api/ai/suggest-dependencies').send({ taskId: created.body.task.id });
     expect(first.body).toMatchObject({ accepted: [], rejected: [], provider: 'mock', cached: false });
     expect(second.body).toMatchObject({ provider: 'mock', cached: true });
   });

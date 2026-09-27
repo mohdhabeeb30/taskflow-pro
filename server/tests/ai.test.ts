@@ -14,44 +14,47 @@ const edge = (taskId: string, dependsOnId: string): Dependency => ({ taskId, dep
 
 describe('AI dependency suggestions', () => {
   it('builds a grounded JSON-only prompt', () => {
-    const prompt = buildDependencyPrompt(tasks, [edge('B', 'A')]);
-    expect(prompt).toContain('"id":"A"');
+    const prompt = buildDependencyPrompt(tasks[1]!, [tasks[0]!, tasks[2]!], [edge('B', 'A')]);
+    expect(prompt).toContain('Target task: {"id":"B"');
+    expect(prompt).toContain('Other tasks: [{"id":"A"');
     expect(prompt).toContain('"taskId":"B"');
+    expect(prompt).toContain('reason string fields');
+    expect(prompt).toContain('suggest any plausible missing prerequisite from the other tasks listed');
     expect(prompt).toContain('JSON only');
     expect(prompt).toContain('empty array is valid');
   });
 
   it.each([
-    ['hallucinated id', '[{"taskId":"B","dependsOnId":"X"}]', 'Both tasks must exist'],
-    ['self-dependency', '[{"taskId":"A","dependsOnId":"A"}]', 'cannot depend on itself'],
-    ['duplicate', '[{"taskId":"B","dependsOnId":"A"}]', 'already exists'],
+    ['hallucinated id', '[{"taskId":"B","dependsOnId":"X","reason":"X should come first"}]', 'Both tasks must exist'],
+    ['self-dependency', '[{"taskId":"B","dependsOnId":"B","reason":"B depends on itself"}]', 'cannot depend on itself'],
+    ['duplicate', '[{"taskId":"B","dependsOnId":"A","reason":"A should come first"}]', 'already exists'],
   ])('rejects %s suggestions', (_name, raw, reason) => {
-    const result = validateSuggestions(raw, tasks, [edge('B', 'A')]);
+    const result = validateSuggestions(raw, 'B', tasks, [edge('B', 'A')]);
     expect(result.accepted).toEqual([]);
     expect(result.rejected[0]?.reason).toContain(reason);
   });
 
   it('rejects a cycle-creating suggestion', () => {
-    const result = validateSuggestions('[{"taskId":"A","dependsOnId":"C"}]', tasks, [edge('C', 'B'), edge('B', 'A')]);
+    const result = validateSuggestions('[{"taskId":"B","dependsOnId":"C","reason":"C should come first"}]', 'B', tasks, [edge('C', 'B'), edge('B', 'A')]);
     expect(result.rejected[0]?.reason).toContain('cycle');
   });
 
   it('rejects invalid JSON and accepts an empty list', () => {
-    expect(validateSuggestions('not json', tasks, []).rejected[0]?.reason).toBe('Invalid JSON response');
-    expect(validateSuggestions('[]', tasks, [])).toEqual({ accepted: [], rejected: [] });
+    expect(validateSuggestions('not json', 'B', tasks, []).rejected[0]?.reason).toBe('Invalid JSON response');
+    expect(validateSuggestions('[]', 'B', tasks, [])).toEqual({ accepted: [], rejected: [] });
   });
 
   it('caches the last result by board content', async () => {
-    const service = new AiService(new MockProvider('[{"taskId":"B","dependsOnId":"A"}]'));
-    const first = await service.suggest(tasks, []);
-    const second = await service.suggest(tasks, []);
+    const service = new AiService(new MockProvider('[{"taskId":"B","dependsOnId":"A","reason":"Plan should come before Build"}]'));
+    const first = await service.suggest(tasks[1]!, [tasks[0]!, tasks[2]!], []);
+    const second = await service.suggest(tasks[1]!, [tasks[0]!, tasks[2]!], []);
     expect(first.cached).toBe(false);
     expect(second.cached).toBe(true);
-    expect(second.accepted).toEqual([{ taskId: 'B', dependsOnId: 'A' }]);
+    expect(second.accepted).toEqual([{ taskId: 'B', dependsOnId: 'A', reason: 'Plan should come before Build' }]);
   });
 
   it('uses mock output and exposes the provider name', async () => {
-    const result = await new AiService(new MockProvider('[]')).suggest(tasks, []);
+    const result = await new AiService(new MockProvider('[]')).suggest(tasks[1]!, [tasks[0]!, tasks[2]!], []);
     expect(result.provider).toBe('mock');
   });
 
